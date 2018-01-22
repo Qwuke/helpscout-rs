@@ -29,19 +29,17 @@ pub struct Client {
 /// Status message returned by every API request.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Status {
-    pub success: bool,
-    pub message: String,
-
-    pub error_code: Option<String>,
+    pub code: Option<i32>,
+    pub error: String,
 }
 
 impl Client {
     /// Create a new client to the HelpScout service.
-    pub fn new(api_url: &str, api_key: &str) -> Client {
+    pub fn new(api_key: &str) -> Client {
         Client {
             retry_count: 3,
             retry_wait: 250,
-            api_url: api_url.into(),
+            api_url: "https://api.helpscout.net/v1".into(),
             api_key: api_key.into(),
             reqwest: reqwest::Client::new().expect("A reqwest client"),
         }
@@ -60,7 +58,7 @@ impl Client {
     }
 
     fn url(&self, prefix: &str, path: &str, params: Option<Vec<(String, String)>>) -> Url {
-        let base = format!("{api_url}/{prefix}/json/{path}",
+        let base = format!("{api_url}/{prefix}/{path}",
                            api_url = self.api_url,
                            prefix = prefix,
                            path = path);
@@ -89,18 +87,6 @@ impl Client {
             // and html content types when returning valid json.
             match serde_json::from_str::<Value>(&body) {
                 Ok(mut value) => {
-                    //T: This *probably* won't be an issue with HelpScout given the code in the HelpScout.rb gem
-                    // It seems that for whatever reason at least one call is returning
-                    // a *string* of a bool rather than a bool for success.
-                    value["success"] = match value.clone()["success"] {
-                        Value::Bool(v) => Value::Bool(v),
-                        Value::String(ref v) => match v.as_ref() {
-                            "true" => Value::Bool(true),
-                            _ => Value::Bool(false),
-                        },
-                        _ => Value::Bool(false),
-                    };
-
                     let status: Status = serde_json::from_value(value.clone())?;
 
                     match res.status() {
